@@ -8,7 +8,7 @@ use fs_server::FileSystemImpl;
 pub fn main() {
     let _ = ::env_logger::init();
 
-    let mut server = Server::new(FileSystemImpl.into_service());
+    let mut server = Server::new(FileSystemImpl::default().into_service());
 
     let http = Http::new().http2_only(true).clone();
 
