@@ -1,5 +1,5 @@
 use futures::{future, Future, Stream};
-use log::{error, trace};
+use log::{error, trace, info};
 use tokio::net::TcpListener;
 use tower_grpc::{Request, Response};
 use tower_hyper::server::{Http, Server};
@@ -53,6 +53,7 @@ pub fn main() {
 
     let addr = "[::1]:50051".parse().unwrap();
     let bind = TcpListener::bind(&addr).expect("bind");
+    info!("listening at {:?}", addr);
 
     let serve = bind
         .incoming()
