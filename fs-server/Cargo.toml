@@ -1,0 +1,23 @@
+[package]
+name = "fs-server"
+version = "0.1.0"
+authors = ["Ryan P. Brewster <RyanPBrewster@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+bytes = "0.4"
+env_logger = "0.5"
+log = "0.4"
+futures = "0.1"
+http = "0.1"
+prost = "0.5"
+prost-derive = "0.5"
+tokio = "0.1"
+tower-grpc = { version = "0.1", features = ["tower-hyper"] }
+tower-hyper = "0.1"
+tower-service = "0.2"
+tower-util = "0.1"
+
+
+[build-dependencies]
+tower-grpc-build = { version = "0.1", features = ["tower-hyper"] }

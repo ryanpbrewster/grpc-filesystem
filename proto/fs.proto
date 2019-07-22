@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package fs;
+
+// The filesystem service definition.
+service FileSystem {
+  rpc Get (GetRequest) returns (GetResponse) {}
+  rpc List (ListRequest) returns (ListResponse) {}
+  rpc Write (WriteRequest) returns (WriteResponse) {}
+}
+
+message GetRequest {
+  // Example: /foo/bar/baz.txt
+  string path = 1;
+}
+
+message GetResponse {
+  bytes content = 1;
+}
+
+message ListRequest {
+  // Example: /foo
+  string path = 1;
+}
+
+message ListResponse {
+  repeated string paths = 1;
+}
+
+message WriteRequest {
+  // Example: /foo/bar/baz.txt
+  string path = 1;
+
+  bytes content = 2;
+}
+
+message WriteResponse {
+  // empty
+}
