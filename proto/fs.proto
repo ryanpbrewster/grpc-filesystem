@@ -7,6 +7,7 @@ service FileSystem {
   rpc Get (GetRequest) returns (GetResponse) {}
   rpc List (ListRequest) returns (ListResponse) {}
   rpc Write (WriteRequest) returns (WriteResponse) {}
+  rpc Mkdir (MkdirRequest) returns (MkdirResponse) {}
 }
 
 message GetRequest {
@@ -35,5 +36,14 @@ message WriteRequest {
 }
 
 message WriteResponse {
+  // empty
+}
+
+message MkdirRequest {
+  // Example: /foo/bar/
+  string path = 1;
+}
+
+message MkdirResponse {
   // empty
 }

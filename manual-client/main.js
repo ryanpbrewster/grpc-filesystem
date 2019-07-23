@@ -5,42 +5,40 @@ const definition = loader.loadSync("../proto/fs.proto");
 const proto = grpc.loadPackageDefinition(definition);
 const client = new proto.fs.FileSystem("localhost:50051", grpc.credentials.createInsecure());
 
+const asyncClient = {};
+Object.values(client.$method_names).map(name => name.toLowerCase()).forEach(name => {
+  asyncClient[name] = (input) => new Promise((resolve, reject) => {
+    client[name](input, (err, resp) => {
+      if (err) { reject(err); } else { resolve(resp); }
+    });
+  });
+});
+
 async function main() {
-  console.log("echo 'Hello, World!' > /foo.txt");
-  await new Promise(resolve => {
-    client.write({ path: "/foo.txt", content: Buffer.from("Hello, World!") }, (err, resp) => {
-      if (err) {
-        console.error(err);
-      } else {
-        console.log(resp);
-      }
-      resolve();
-    });
-  });
+  for (const dirname of ["/home", "/home/rpb", "/usr", "/usr/lib"]) {
+    console.log("mkdir " + dirname);
+    await asyncClient.mkdir({ path: dirname });
+    for (let i = 0; i < 10; i++) {
+      await asyncClient.write({
+        path: `${dirname}/foo-${i}.txt`,
+        content: Buffer.from(`n = ${dirname.length + i}`),
+      });
+    }
+  }
 
-  console.log("ls /");
-  await new Promise(resolve => {
-    client.list({ path: "/" }, (err, resp) => {
-      if (err) {
-        console.error(err);
-      } else {
-        console.log(resp);
-      }
-      resolve();
-    });
-  });
-
-  console.log("cat /foo.txt");
-  await new Promise(resolve => {
-    client.get({ path: "/foo.txt" }, (err, resp) => {
-      if (err) {
-        console.error(err);
-      } else {
-        console.log(resp.content.toString());
-      }
-      resolve();
-    });
-  });
+  await lsrec("/");
 }
 
-main();
+async function lsrec(dirname) {
+  console.log("ls " + dirname);
+  const list = await asyncClient.list({ path: dirname });
+  console.log(list);
+  for (const path of list.paths) {
+    if (path.endsWith("/")) {
+      await lsrec(dirname + path);
+    }
+
+  }
+}
+
+main().catch(err => console.error(err));
