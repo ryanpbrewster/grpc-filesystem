@@ -1,34 +1,19 @@
-use futures::{Future, Stream};
-use log::{error, info};
-use tokio::net::TcpListener;
-use tower_hyper::server::{Http, Server};
+use log::info;
+use tonic::transport::Server;
 
-use fs_server::FileSystemImpl;
+use fs_server::{FileSystemImpl, FileSystemServer};
 
-pub fn main() {
-    let _ = ::env_logger::init();
-
-    let mut server = Server::new(FileSystemImpl::default().into_service());
-
-    let http = Http::new().http2_only(true).clone();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
 
     let addr = "[::1]:50051".parse().unwrap();
-    let bind = TcpListener::bind(&addr).expect("bind");
+    let server = FileSystemImpl::default();
     info!("listening at {:?}", addr);
+    Server::builder()
+        .add_service(FileSystemServer::new(server))
+        .serve(addr)
+        .await?;
 
-    let serve = bind
-        .incoming()
-        .for_each(move |sock| {
-            if let Err(e) = sock.set_nodelay(true) {
-                return Err(e);
-            }
-
-            let serve = server.serve_with(sock, http.clone());
-            tokio::spawn(serve.map_err(|e| error!("hyper error: {:?}", e)));
-
-            Ok(())
-        })
-        .map_err(|e| eprintln!("accept error: {}", e));
-
-    tokio::run(serve)
+    Ok(())
 }

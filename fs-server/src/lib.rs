@@ -1,13 +1,13 @@
-use futures::future;
 use log::trace;
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
-use tower_grpc::{Code, Request, Response, Status};
+use tonic::{Code, Request, Response, Status};
 
 pub mod proto {
-    include!(concat!(env!("OUT_DIR"), "/fs.rs"));
+    tonic::include_proto!("fs");
 }
 
+pub use crate::proto::file_system_server::FileSystemServer;
 use crate::proto::{
     GetRequest, GetResponse, ListRequest, ListResponse, MkdirRequest, MkdirResponse, WriteRequest,
     WriteResponse,
@@ -65,34 +65,36 @@ impl<T> Tree<T> {
 }
 
 impl FileSystemImpl {
-    pub fn into_service(self) -> proto::server::FileSystemServer<Self> {
-        proto::server::FileSystemServer::new(self)
+    pub fn into_service(self) -> proto::file_system_server::FileSystemServer<Self> {
+        proto::file_system_server::FileSystemServer::new(self)
     }
 }
 
-impl proto::server::FileSystem for FileSystemImpl {
-    type GetFuture = future::FutureResult<Response<GetResponse>, tower_grpc::Status>;
-    type ListFuture = future::FutureResult<Response<ListResponse>, tower_grpc::Status>;
-    type WriteFuture = future::FutureResult<Response<WriteResponse>, tower_grpc::Status>;
-    type MkdirFuture = future::FutureResult<Response<MkdirResponse>, tower_grpc::Status>;
-
-    fn get(&mut self, request: Request<GetRequest>) -> Self::GetFuture {
+#[tonic::async_trait]
+impl proto::file_system_server::FileSystem for FileSystemImpl {
+    async fn get(
+        &self,
+        request: Request<GetRequest>,
+    ) -> Result<Response<GetResponse>, tonic::Status> {
         trace!("[GET] request = {:?}", request);
         let path = request.into_inner().path;
         let response: GetResponse = match self.root.read().unwrap().get(segments(&path)) {
             Some(Tree::Leaf(content)) => GetResponse {
                 content: content.clone(),
             },
-            _ => return future::err(Status::new(Code::NotFound, "no such file")),
+            _ => return Err(Status::new(Code::NotFound, "no such file")),
         };
-        future::ok(Response::new(response))
+        Ok(Response::new(response))
     }
 
-    fn list(&mut self, request: Request<ListRequest>) -> Self::ListFuture {
+    async fn list(
+        &self,
+        request: Request<ListRequest>,
+    ) -> Result<Response<ListResponse>, tonic::Status> {
         trace!("[LIST] request = {:?}", request);
         let path = request.into_inner().path;
         let response: ListResponse = match self.root.read().unwrap().get(segments(&path)) {
-            None => return future::err(Status::new(Code::NotFound, "no such file")),
+            None => return Err(Status::new(Code::NotFound, "no such file")),
             Some(node) => match node {
                 Tree::Leaf(_) => ListResponse { paths: vec![path] },
                 Tree::Parent(files) => ListResponse {
@@ -106,10 +108,13 @@ impl proto::server::FileSystem for FileSystemImpl {
                 },
             },
         };
-        future::ok(Response::new(response))
+        Ok(Response::new(response))
     }
 
-    fn write(&mut self, request: Request<WriteRequest>) -> Self::WriteFuture {
+    async fn write(
+        &self,
+        request: Request<WriteRequest>,
+    ) -> Result<Response<WriteResponse>, tonic::Status> {
         trace!("[WRITE] request = {:?}", request);
         let msg = request.into_inner();
         let path = msg.path;
@@ -117,46 +122,49 @@ impl proto::server::FileSystem for FileSystemImpl {
 
         let mut segs = segments(&path);
         let name = match segs.pop() {
-            None => return future::err(Status::new(Code::InvalidArgument, "illegal filename")),
+            None => return Err(Status::new(Code::InvalidArgument, "illegal filename")),
             Some(name) => name,
         };
 
         match self.root.write().unwrap().get_mut(segs) {
             Some(Tree::Parent(files)) => {
                 if let Some(Tree::Parent(_)) = files.get(&name) {
-                    return future::err(Status::new(
+                    return Err(Status::new(
                         Code::InvalidArgument,
                         "cannot write to directory",
                     ));
                 }
                 files.insert(name, Tree::Leaf(content));
             }
-            _ => return future::err(Status::new(Code::NotFound, "no such directory")),
+            _ => return Err(Status::new(Code::NotFound, "no such directory")),
         };
-        future::ok(Response::new(WriteResponse {}))
+        Ok(Response::new(WriteResponse {}))
     }
 
-    fn mkdir(&mut self, request: Request<MkdirRequest>) -> Self::MkdirFuture {
+    async fn mkdir(
+        &self,
+        request: Request<MkdirRequest>,
+    ) -> Result<Response<MkdirResponse>, tonic::Status> {
         trace!("[MKDIR] request = {:?}", request);
         let msg = request.into_inner();
         let path = msg.path;
 
         let mut segs = segments(&path);
         let name = match segs.pop() {
-            None => return future::err(Status::new(Code::InvalidArgument, "illegal dirname")),
+            None => return Err(Status::new(Code::InvalidArgument, "illegal dirname")),
             Some(name) => name,
         };
 
         match self.root.write().unwrap().get_mut(segs) {
             Some(Tree::Parent(files)) => {
                 if let Some(Tree::Parent(_)) = files.get(&name) {
-                    return future::err(Status::new(Code::InvalidArgument, "file exists"));
+                    return Err(Status::new(Code::InvalidArgument, "file exists"));
                 }
                 files.insert(name, Tree::Parent(BTreeMap::new()));
             }
-            _ => return future::err(Status::new(Code::NotFound, "no such directory")),
+            _ => return Err(Status::new(Code::NotFound, "no such directory")),
         };
-        future::ok(Response::new(MkdirResponse {}))
+        Ok(Response::new(MkdirResponse {}))
     }
 }
 
