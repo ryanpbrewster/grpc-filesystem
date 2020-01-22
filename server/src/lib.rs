@@ -31,18 +31,24 @@ enum Tree<T> {
     Parent(BTreeMap<String, Tree<T>>),
 }
 impl<T> Tree<T> {
+    fn children(&self) -> Option<&BTreeMap<String, Tree<T>>> {
+        match self {
+            Tree::Leaf(_) => None,
+            Tree::Parent(children) => Some(children),
+        }
+    }
+
+    fn children_mut(&mut self) -> Option<&mut BTreeMap<String, Tree<T>>> {
+        match self {
+            Tree::Leaf(_) => None,
+            Tree::Parent(children) => Some(children),
+        }
+    }
+
     fn get<P: IntoIterator<Item = String>>(&self, path: P) -> Option<&Tree<T>> {
         let mut node = self;
         for segment in path {
-            match node {
-                Tree::Leaf(_) => return None,
-                Tree::Parent(children) => match children.get(&segment) {
-                    None => return None,
-                    Some(child) => {
-                        node = child;
-                    }
-                },
-            }
+            node = node.children()?.get(&segment)?;
         }
         Some(node)
     }
@@ -50,15 +56,7 @@ impl<T> Tree<T> {
     fn get_mut<P: IntoIterator<Item = String>>(&mut self, path: P) -> Option<&mut Tree<T>> {
         let mut node = self;
         for segment in path {
-            match node {
-                Tree::Leaf(_) => return None,
-                Tree::Parent(children) => match children.get_mut(&segment) {
-                    None => return None,
-                    Some(child) => {
-                        node = child;
-                    }
-                },
-            }
+            node = node.children_mut()?.get_mut(&segment)?;
         }
         Some(node)
     }
