@@ -7,7 +7,7 @@ pub mod proto {
     tonic::include_proto!("fs");
 }
 
-pub use crate::proto::file_system_server::FileSystemServer;
+pub use crate::proto::file_system_server::{FileSystem, FileSystemServer};
 use crate::proto::{
     GetRequest, GetResponse, ListRequest, ListResponse, MkdirRequest, MkdirResponse, WriteRequest,
     WriteResponse,
@@ -62,18 +62,9 @@ impl<T> Tree<T> {
     }
 }
 
-impl FileSystemImpl {
-    pub fn into_service(self) -> proto::file_system_server::FileSystemServer<Self> {
-        proto::file_system_server::FileSystemServer::new(self)
-    }
-}
-
 #[tonic::async_trait]
-impl proto::file_system_server::FileSystem for FileSystemImpl {
-    async fn get(
-        &self,
-        request: Request<GetRequest>,
-    ) -> Result<Response<GetResponse>, tonic::Status> {
+impl FileSystem for FileSystemImpl {
+    async fn get(&self, request: Request<GetRequest>) -> Result<Response<GetResponse>, Status> {
         trace!("[GET] request = {:?}", request);
         let path = request.into_inner().path;
         let response: GetResponse = match self.root.read().unwrap().get(segments(&path)) {
@@ -85,44 +76,39 @@ impl proto::file_system_server::FileSystem for FileSystemImpl {
         Ok(Response::new(response))
     }
 
-    async fn list(
-        &self,
-        request: Request<ListRequest>,
-    ) -> Result<Response<ListResponse>, tonic::Status> {
+    async fn list(&self, request: Request<ListRequest>) -> Result<Response<ListResponse>, Status> {
         trace!("[LIST] request = {:?}", request);
         let path = request.into_inner().path;
-        let response: ListResponse = match self.root.read().unwrap().get(segments(&path)) {
-            None => return Err(Status::new(Code::NotFound, "no such file")),
-            Some(node) => match node {
-                Tree::Leaf(_) => ListResponse { paths: vec![path] },
-                Tree::Parent(files) => ListResponse {
-                    paths: files
-                        .iter()
-                        .map(|(k, v)| match v {
-                            Tree::Parent(_) => format!("{}/", k),
-                            Tree::Leaf(_) => format!("{}", k),
-                        })
-                        .collect(),
-                },
-            },
+        let root = self.root.read().unwrap();
+        let node = root
+            .get(segments(&path))
+            .ok_or(Status::new(Code::NotFound, "no such file"))?;
+        let paths = match node {
+            Tree::Leaf(_) => vec![path],
+            Tree::Parent(files) => files
+                .iter()
+                .map(|(k, v)| match v {
+                    Tree::Parent(_) => format!("{}/", k),
+                    Tree::Leaf(_) => format!("{}", k),
+                })
+                .collect(),
         };
-        Ok(Response::new(response))
+        Ok(Response::new(ListResponse { paths }))
     }
 
     async fn write(
         &self,
         request: Request<WriteRequest>,
-    ) -> Result<Response<WriteResponse>, tonic::Status> {
+    ) -> Result<Response<WriteResponse>, Status> {
         trace!("[WRITE] request = {:?}", request);
         let msg = request.into_inner();
         let path = msg.path;
         let content = msg.content;
 
         let mut segs = segments(&path);
-        let name = match segs.pop() {
-            None => return Err(Status::new(Code::InvalidArgument, "illegal filename")),
-            Some(name) => name,
-        };
+        let name = segs
+            .pop()
+            .ok_or(Status::new(Code::InvalidArgument, "illegal filename"))?;
 
         match self.root.write().unwrap().get_mut(segs) {
             Some(Tree::Parent(files)) => {
@@ -142,16 +128,15 @@ impl proto::file_system_server::FileSystem for FileSystemImpl {
     async fn mkdir(
         &self,
         request: Request<MkdirRequest>,
-    ) -> Result<Response<MkdirResponse>, tonic::Status> {
+    ) -> Result<Response<MkdirResponse>, Status> {
         trace!("[MKDIR] request = {:?}", request);
         let msg = request.into_inner();
         let path = msg.path;
 
         let mut segs = segments(&path);
-        let name = match segs.pop() {
-            None => return Err(Status::new(Code::InvalidArgument, "illegal dirname")),
-            Some(name) => name,
-        };
+        let name = segs
+            .pop()
+            .ok_or(Status::new(Code::InvalidArgument, "illegal dirname"))?;
 
         match self.root.write().unwrap().get_mut(segs) {
             Some(Tree::Parent(files)) => {
