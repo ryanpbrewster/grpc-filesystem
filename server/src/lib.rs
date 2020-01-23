@@ -140,10 +140,7 @@ impl FileSystem for FileSystemImpl {
 
         match self.root.write().unwrap().get_mut(segs) {
             Some(Tree::Parent(files)) => {
-                if let Some(Tree::Parent(_)) = files.get(&name) {
-                    return Err(Status::new(Code::InvalidArgument, "file exists"));
-                }
-                files.insert(name, Tree::Parent(BTreeMap::new()));
+                files.entry(name).or_insert_with(|| Tree::Parent(BTreeMap::new()));
             }
             _ => return Err(Status::new(Code::NotFound, "no such directory")),
         };
