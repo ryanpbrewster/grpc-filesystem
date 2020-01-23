@@ -9,8 +9,8 @@ pub mod proto {
 
 pub use crate::proto::file_system_server::{FileSystem, FileSystemServer};
 use crate::proto::{
-    GetRequest, GetResponse, ListRequest, ListResponse, MkdirRequest, MkdirResponse, WriteRequest,
-    WriteResponse,
+    ExecRequest, ExecResponse, GetRequest, GetResponse, ListRequest, ListResponse, MkdirRequest,
+    MkdirResponse, WriteRequest, WriteResponse,
 };
 
 #[derive(Clone, Debug)]
@@ -140,11 +140,18 @@ impl FileSystem for FileSystemImpl {
 
         match self.root.write().unwrap().get_mut(segs) {
             Some(Tree::Parent(files)) => {
-                files.entry(name).or_insert_with(|| Tree::Parent(BTreeMap::new()));
+                files
+                    .entry(name)
+                    .or_insert_with(|| Tree::Parent(BTreeMap::new()));
             }
             _ => return Err(Status::new(Code::NotFound, "no such directory")),
         };
         Ok(Response::new(MkdirResponse {}))
+    }
+
+    async fn exec(&self, request: Request<ExecRequest>) -> Result<Response<ExecResponse>, Status> {
+        trace!("[EXEC] request = {:?}", request);
+        Err(Status::new(Code::Unimplemented, "rpc Exec unimplemented"))
     }
 }
 

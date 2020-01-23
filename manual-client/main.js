@@ -18,6 +18,9 @@ async function main() {
 
   console.log(`> ls -R`);
   console.log(await client.lsrec("/"));
+
+  console.log(`> exec <wasm>`);
+  console.log(await client.exec(Buffer.from("foo bar baz")));
 }
 
 class Wrapper {
@@ -52,6 +55,18 @@ class Wrapper {
   write(path, content) {
     return new Promise((resolve, reject) => {
       this.underlying.write({ path, content }, (err, resp) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(resp);
+        }
+      });
+    });
+  }
+
+  exec(wasm) {
+    return new Promise((resolve, reject) => {
+      this.underlying.exec({ wasm }, (err, resp) => {
         if (err) {
           reject(err);
         } else {

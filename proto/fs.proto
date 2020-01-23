@@ -8,6 +8,8 @@ service FileSystem {
   rpc List (ListRequest) returns (ListResponse) {}
   rpc Write (WriteRequest) returns (WriteResponse) {}
   rpc Mkdir (MkdirRequest) returns (MkdirResponse) {}
+
+  rpc Exec (ExecRequest) returns (ExecResponse) {}
 }
 
 message GetRequest {
@@ -46,4 +48,12 @@ message MkdirRequest {
 
 message MkdirResponse {
   // empty
+}
+
+message ExecRequest {
+  bytes wasm = 1;
+}
+
+message ExecResponse {
+  int32 n = 1;
 }
