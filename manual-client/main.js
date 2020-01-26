@@ -1,3 +1,4 @@
+const fs = require("fs");
 const grpc = require("grpc");
 const loader = require("@grpc/proto-loader");
 
@@ -8,7 +9,7 @@ async function main() {
   for (const dirname of ["/home", "/home/rpb", "/usr", "/usr/lib"]) {
     console.log(`> mkdir ${dirname}`);
     await client.mkdir(dirname);
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 3; i++) {
       const path = `${dirname}/foo-${i}.txt`;
       const content = `n = ${dirname.length + i}`;
       console.log(`> echo '${content}' > ${path}`);
@@ -20,7 +21,7 @@ async function main() {
   console.log(await client.lsrec("/"));
 
   console.log(`> exec <wasm>`);
-  console.log(await client.exec(Buffer.from("foo bar baz")));
+  console.log(await client.exec(fs.readFileSync("example.wasm")));
 }
 
 class Wrapper {

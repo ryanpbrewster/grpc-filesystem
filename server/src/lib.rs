@@ -151,7 +151,21 @@ impl FileSystem for FileSystemImpl {
 
     async fn exec(&self, request: Request<ExecRequest>) -> Result<Response<ExecResponse>, Status> {
         trace!("[EXEC] request = {:?}", request);
-        Err(Status::new(Code::Unimplemented, "rpc Exec unimplemented"))
+        let msg = request.into_inner();
+        let wasm = msg.wasm;
+        let imports = wasmer_runtime::imports!();
+        let instance = wasmer_runtime::instantiate(&wasm, &imports)
+            .map_err(|_| Status::new(Code::InvalidArgument, "invalid wasm"))?;
+        let main: wasmer_runtime::Func<i32, i32> = instance.func("main").map_err(|_| {
+            Status::new(
+                Code::InvalidArgument,
+                "could not find exported function 'main'",
+            )
+        })?;
+        let n = main.call(42).map_err(|_| {
+            Status::new(Code::FailedPrecondition, "execution error in provided wasm")
+        })?;
+        Ok(Response::new(ExecResponse { n }))
     }
 }
 
