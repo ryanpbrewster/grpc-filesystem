@@ -1,4 +1,4 @@
-use log::trace;
+use log::{warn, trace};
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 use tonic::{Code, Request, Response, Status};
@@ -153,16 +153,24 @@ impl FileSystem for FileSystemImpl {
         trace!("[EXEC] request = {:?}", request);
         let msg = request.into_inner();
         let wasm = msg.wasm;
-        let imports = wasmer_runtime::imports!();
+        
+        let imports = wasmer_runtime::imports! {
+          "env" => {
+            "hello" => wasmer_runtime::func!(embedded_hello),
+          },
+        };
         let instance = wasmer_runtime::instantiate(&wasm, &imports)
-            .map_err(|_| Status::new(Code::InvalidArgument, "invalid wasm"))?;
-        let main: wasmer_runtime::Func<i32, i32> = instance.func("main").map_err(|_| {
+            .map_err(|err| {
+              warn!("could not instantiate module: {:?}", err);
+              Status::new(Code::InvalidArgument, "invalid wasm")
+            })?;
+        let entrypoint: wasmer_runtime::Func<(), i32> = instance.func("entrypoint").map_err(|_| {
             Status::new(
                 Code::InvalidArgument,
-                "could not find exported function 'main'",
+                "could not find exported function 'entrypoint'",
             )
         })?;
-        let n = main.call(42).map_err(|_| {
+        let n = entrypoint.call().map_err(|_| {
             Status::new(Code::FailedPrecondition, "execution error in provided wasm")
         })?;
         Ok(Response::new(ExecResponse { n }))
@@ -174,4 +182,8 @@ fn segments(path: &str) -> Vec<String> {
         .filter(|segment| !segment.is_empty())
         .map(String::from)
         .collect()
+}
+
+fn embedded_hello(_ctx: &mut wasmer_runtime::Ctx) -> i32 {
+  42
 }

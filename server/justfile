@@ -1,2 +1,2 @@
 serve:
-  RUST_LOG=main=trace cargo run
+  RUST_LOG=main=trace,server=info cargo run

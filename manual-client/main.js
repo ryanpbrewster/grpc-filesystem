@@ -21,7 +21,7 @@ async function main() {
   console.log(await client.lsrec("/"));
 
   console.log(`> exec <wasm>`);
-  console.log(await client.exec(fs.readFileSync("example.wasm")));
+  console.log(await client.exec(fs.readFileSync("lsrec/lsrec.wasm")));
 }
 
 class Wrapper {
