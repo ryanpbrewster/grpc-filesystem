@@ -1,4 +1,4 @@
-use log::{warn, trace};
+use log::{trace, warn};
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 use tonic::{Code, Request, Response, Status};
@@ -150,26 +150,26 @@ impl FileSystem for FileSystemImpl {
     }
 
     async fn exec(&self, request: Request<ExecRequest>) -> Result<Response<ExecResponse>, Status> {
-        trace!("[EXEC] request = {:?}", request);
         let msg = request.into_inner();
         let wasm = msg.wasm;
-        
+        trace!("[EXEC] request = [{} bytes]", wasm.len());
+
         let imports = wasmer_runtime::imports! {
           "env" => {
             "hello" => wasmer_runtime::func!(embedded_hello),
           },
         };
-        let instance = wasmer_runtime::instantiate(&wasm, &imports)
-            .map_err(|err| {
-              warn!("could not instantiate module: {:?}", err);
-              Status::new(Code::InvalidArgument, "invalid wasm")
-            })?;
-        let entrypoint: wasmer_runtime::Func<(), i32> = instance.exports.get("entrypoint").map_err(|_| {
-            Status::new(
-                Code::InvalidArgument,
-                "could not find exported function 'entrypoint'",
-            )
+        let instance = wasmer_runtime::instantiate(&wasm, &imports).map_err(|err| {
+            warn!("could not instantiate module: {:?}", err);
+            Status::new(Code::InvalidArgument, "invalid wasm")
         })?;
+        let entrypoint: wasmer_runtime::Func<(), i32> =
+            instance.exports.get("entrypoint").map_err(|_| {
+                Status::new(
+                    Code::InvalidArgument,
+                    "could not find exported function 'entrypoint'",
+                )
+            })?;
         let n = entrypoint.call().map_err(|_| {
             Status::new(Code::FailedPrecondition, "execution error in provided wasm")
         })?;
@@ -185,5 +185,6 @@ fn segments(path: &str) -> Vec<String> {
 }
 
 fn embedded_hello(_ctx: &mut wasmer_runtime::Ctx) -> i32 {
-  42
+    trace!("invoking host function: embedded_hello");
+    42
 }
