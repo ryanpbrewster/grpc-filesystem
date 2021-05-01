@@ -164,7 +164,7 @@ impl FileSystem for FileSystemImpl {
               warn!("could not instantiate module: {:?}", err);
               Status::new(Code::InvalidArgument, "invalid wasm")
             })?;
-        let entrypoint: wasmer_runtime::Func<(), i32> = instance.func("entrypoint").map_err(|_| {
+        let entrypoint: wasmer_runtime::Func<(), i32> = instance.exports.get("entrypoint").map_err(|_| {
             Status::new(
                 Code::InvalidArgument,
                 "could not find exported function 'entrypoint'",
